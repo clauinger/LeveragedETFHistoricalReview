@@ -1,0 +1,256 @@
+
+body {
+  touch-action: none;
+  padding: 0%;
+  overflow: hidden;
+  background-color: rgb(240, 0, 0);
+  background: linear-gradient(40deg, rgba(179,116,107,1) 13%, rgba(28,163,185,0.2) 61%, rgba(102,183,199,1) 84%);
+  height: 100vh;
+}
+
+@media (max-height: 610px) {
+  #table1 {
+    font-size: xx-small;
+  }
+  table, thead, tbody, th, td, tr  {
+    font-size: x-small;
+  }
+}
+
+@media (max-width: 460px) {
+  table, thead, tbody, th, td, tr {
+    display: block;
+  }
+  /* Hide table headers (but not display: none;, for accessibility) */
+  tr .tableHead {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+  }
+  tr th {
+    text-align: left;
+  }
+
+  td {
+    /* Behave  like a "row" */
+    /* color: purple; */
+    border: none;
+    border-bottom: 1px solid #eee;
+    position: relative;
+    padding-left: 80%;
+    text-align: left;
+  }
+
+  td:before {
+    /* Now like a table header */
+    position: absolute;
+    /* Top/left values mimic padding */
+    top: 0;
+    left: 6px;
+    width: 45%;
+    white-space: nowrap;
+    font-weight: bold;
+    text-align: left;
+  }
+
+  td:nth-of-type(1):before { content: "Total Return"; }
+  td:nth-of-type(2):before { content: "Annualized Return"; }
+  td:nth-of-type(3):before { content: "Maximum Drawdown"; }
+  td:nth-of-type(4):before { content: "Max Drawdown on Principal"; }
+  td:nth-of-type(5):before { content: "Sharpe Ratio"; }
+
+  #tableContainer  {
+    overflow-y:auto;
+    overflow: hidden;
+  }
+
+  .rowTitle{
+    text-align: left;
+    align-self: center;
+    align-content: center;
+    /* text-align: left; */
+  }
+  .cashRatioSlider li {
+    font-size: min(2vw 8px);
+  }
+}
+
+table,
+th,
+td {
+  border: 1px solid black;
+  border-collapse: collapse;
+}
+
+#resetTimelineButton{
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+  width: 3em;
+  background-color: white;
+  border: none;
+}
+
+.slidecontainer {
+  width: 100%;
+}
+
+.slider {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 5px;
+  background:white;
+  outline: none;
+  opacity: 0.7;
+  -webkit-transition: .2s;
+  transition: opacity .2s;
+}
+
+.slider:hover {
+  opacity: 1;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 25px;
+  height: 10px;
+  background: black;
+  cursor: pointer;
+}
+
+.slider::-moz-range-thumb {
+  width: 25px;
+  height: 15px;
+  background: rgb(8, 62, 74);
+  cursor: pointer;
+}
+
+.cashRatioSlider li {
+  display: inline-block;
+  /* font-size: 2vw;
+  font-size: min(2vw 8px); */
+  /* font-size: clamp(2vw, 8px, 12px ); */
+  font-size: 10px ;
+  padding: 0.3em;
+}
+
+.cashRatioSlider {
+  background-color:blue;
+  color: aliceblue;
+  padding-left: 0;
+}
+
+.percentageCell {
+  /* text-align: center; */
+  /* height: 30px; */
+  background-color: white;
+}
+
+
+#table1 {
+  font-size: small;
+  background: transparent;
+  border-style: hidden;
+}
+#table1 td {
+  border: 1px solid black; 
+}
+#table1 tr:first-child td {
+  border-top: 0;
+}
+#table1 tr td:first-child {
+  border-left: 0;
+  
+}
+#table1 tr:last-child td {
+  border-bottom: 0;
+}
+#table1 tr td:last-child {
+  border-right: 0;
+}
+
+#tableContainer  {
+  overflow-y:auto;
+  max-width: 650px;
+}
+
+#container {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 70px);
+  max-width: 650px;
+  align-self: center;
+  margin: 0 auto;
+  max-height: 650px;
+}
+
+.rowTitle{
+  align-content: left;
+  text-align: left;
+  padding-left: 3px;
+  color: white;
+  border-style: hidden;
+}
+
+#chartContainer {
+  margin-top: 0.1vh;
+  max-width: 650px;
+}
+
+#pageStyle {
+  align-self: center;
+}
+
+
+#pageTitle {
+  margin-bottom: .5em;
+  margin-top: .5em;
+  text-align: center
+}
+
+.tertiary{
+  align-content: left;
+  text-align: left;
+  padding-left: 3px;
+}
+
+#investmentRatioText{
+  margin-left: .3em;
+}
+
+.cellData{
+  text-align: center;
+  /* border: none; */
+  /* align-self: auto; */
+}
+
+.percent{
+  margin-top:0;
+  margin-bottom:0;
+  font-size: .85em;
+  opacity: .7;
+  margin-right: 0;
+}
+
+#etfList{
+  font-size: medium;
+  white-space: nowrap; 
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: none;
+  border-top-right-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+.tableSpace{
+  background-color: rgba(0,0,0,0);
+  text-align: left;
+  font-weight: normal;
+  font-style: italic;
+  border: none;
+}
+
+.tableHead{
+  border-style: hidden;
+  
+}

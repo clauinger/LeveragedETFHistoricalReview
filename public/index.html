@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head > 
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@2.8.0"></script>
+  <script src="https://kit.fontawesome.com/a93520d4f2.js" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="main.css">
+
+  <script src = "https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"> </script>
+
+</head>
+
+<body style="background-color:powderblue; font-family: Arial, Helvetica, sans-serif">
+<h3 id = 'pageTitle' >Leveraged ETF Historical Review</h3>
+
+<div id='container'>
+  <div id='chartContainer'    class = 'cell' >
+    <div style='display: flex;flex-direction: row; margin-bottom: .5em;'>
+      <button id='resetTimelineButton' disabled class = 'selectBar'>
+        <i class="fa fa-refresh" aria-hidden="true" style="color: gray"></i>
+      </button>
+      <select id="etfList" class = 'selectBar' style='width: 100%'>
+        <option value="UPRO|SPY" selected>UPRO vs SPY: 3X S&P 500</option>
+        <option value="UDOW|DIA">UPRO vs DIA: 3X Dow Jones Industrials (DJI)</option>
+        <option value="TQQQ|QQQ">TQQQ vs QQQ: 3X NASDAQ 100</option>
+        <option value="URTY|IWM">URTY vs IWM: 3X Russel 2000</option>
+        <option value="FAS|XLF">FAS vs XLF: 3X Financial Sector</option>
+        <option value="ERX|XLE">ERX vs XLE: 2X Energy Sector</option>
+        <option value="SOXL|SOXX">SOXL vs SOXX: 3X Semiconductor</option> 
+        <option value="UMDD|MDY">UMDD vs MDY: 3X S&P MidCap 400</option> 
+        <option value="UTSL|IDU">UTSL vs IDU: 3X Dow Jones U.S. Utilities</option> 
+        <option value="CURE|XLV">CURE vs XLV: 3X Healthcare</option> 
+        <option value="DUSL|XLI">DUSL vs XLI: 3X Industrials</option> 
+        
+      </select>
+    </div>
+    <div id='chartJSContainer' > </div>
+    <div id='bottomFillStrip' style="height : 16px"> </div>
+  </div>
+
+  <div class="fa-3x" style="display: flex; justify-content: center;" >
+    <i id='spinner' class="fas fa-spinner fa-spin" style="color: grey;"></i>
+  </div>
+
+  <div id='tableHeadingContainer' class = 'cell' >
+    <label id='tableHeading' style="font-size: small;">Performance from </label>
+    <label id='tableHeadingTimeline' style="font-size: small;margin-left: 1em;">10 Years, 3.2 Months</label>
+  </div>
+
+  <div id='tableContainer' class = 'cell'   >
+
+    <div id='tableContainer2' style="overflow-y:auto;">
+      <table id='table1' >
+        <tr>
+          <th class='tableHead'></th>
+          <th class='tableHead'>Total Return</th>
+          <th class='tableHead'>Annualized Return</th>
+          <th class='tableHead'>Max Drawdown</th>
+          <th class='tableHead'>Max Drawdown on Principal</th>
+          <th class='tableHead'>Sharpe Ratio</th>
+        </tr>
+  
+        <tr class='percentageCell'> 
+          <th class='rowTitle primary' id='primarySymbol' >UPRO</th>
+          <td class='cellData' id='primaryTotalReturn'>0%</td>
+          <td class='cellData' id='primaryAnnualizedReturn'>0%</td>
+          <td class='cellData' id='primaryMaxDrawdown'>0%</td>
+          <td class='cellData' id='primaryMaxDrawdownOnPrincipal'>0%</td>
+          <td class='cellData' id='primarySharpeRatio'>0%</td>
+        </tr>
+
+        <tr class='percentageCell'>
+          <th class='rowTitle secondary' id='secondarySymbol' style="padding-right:1em">SPY</th>
+          <td class='cellData' id='secondaryTotalReturn'>0%</td>
+          <td class='cellData' id='secondaryAnnualizedReturn'>0%</td>
+          <td class='cellData' id='secondaryMaxDrawdown'>0%</td>
+          <td class='cellData' id='secondaryMaxDrawdownOnPrincipal'>0%</td>
+          <td class='cellData' id='secondarySharpeRatio'>0%</td>
+        </tr>
+        <tr >
+            <th class = 'tableSpace' colspan="6">Partial Invested </th>
+        </tr>
+        <tr class='percentageCell'>
+          <th class='rowTitle tertiary' > 
+            <div style = 'display: flex;flex-direction: row ;justify-content: space-between;'>
+                <p id='tertiarySymbol' style="margin-top:0;margin-bottom:0" >XETF</p> 
+                <p  style="margin-top:0;margin-bottom:0;" >Cash</p> 
+            </div>
+             
+            <div style = 'display: flex;flex-direction: row'>
+                <p  class ='percent' id='investmentRatioText' >30%</p>
+                <input type="range" min="1" max="100" value="50" class="slider" id="cashRatio">
+                <p class ='percent' id = 'cashRatioText'>80%</p>
+            </div>
+          </th>
+          <td class='cellData' id='tertiaryTotalReturn'>0%</td>
+          <td class='cellData' id='tertiaryAnnualizedReturn'>0%</td>
+          <td class='cellData' id='tertiaryMaxDrawdown'>0%</td>
+          <td class='cellData' id='tertiaryMaxDrawdownPrincipal'>0%</td>
+          <td class='cellData' id='tertiarySharpeRatio'>0%</td>
+        </tr>
+      </table>
+    </div>
+
+  </div>
+
+</div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="/workSpace.js"></script>
+
+</body>
+
+</html>
