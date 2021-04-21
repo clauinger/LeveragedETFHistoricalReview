@@ -1,28 +1,48 @@
 //**----------------------------- */
-//** MAIN VIEW                    */
+//** CHART DISPLAY                */
 //**----------------------------- */
-
+import { PenConstruct } from './PenConstruct.js'
 /*jshint esversion: 6 */
 /*jshint asi: true */
 /*jshint expr: true */
-const {log} = console
+const {
+  log
+} = console
 
-const CHART_LEFT_SIDE_OFFSET = 45
+const CHART_LEFT_SIDE_OFFSET = 53
 const CHART_TOP_SIDE_OFFSET = 30
 const CHART_BOTTOM_SIDE_OFFSET = 50
-const CHART_RIGHT_SIDE_OFFSET = 8
+const CHART_RIGHT_SIDE_OFFSET = 9
 const RIGHT_MOUSE_BUTTON_CLICK = 2
-const DRAW_CHART_BOUNDRY = false
-const CHART_CANVAS_HEIGHT_EXTENTION = 15
 
-const PRIMARY_COLOR_RGB = '0, 100, 130', SECONDARY_COLOR_RGB = '200, 0, 0', TERTIARY_COLOR_RGB = '60, 99, 57'
-export const chartColorPalette = {PRIMARY_COLOR_RGB, SECONDARY_COLOR_RGB, TERTIARY_COLOR_RGB }
+const PRIMARY_COLOR_RGB = '0, 100, 130',
+  SECONDARY_COLOR_RGB = '200, 0, 0',
+  TERTIARY_COLOR_RGB = '60, 99, 57'
+export const chartColorPalette = {
+  PRIMARY_COLOR_RGB,
+  SECONDARY_COLOR_RGB,
+  TERTIARY_COLOR_RGB
+}
 
 Chart.defaults.global.elements.point.pointStyle = 'dash'
-Chart.defaults.global.defaultFontSize = 8
+Chart.defaults.global.defaultFontSize = 10
 
-export function makeChart(inputs){
-  const {
+//** FUNCTIONS */
+function getNumberWithinRange(numberToVerify, marginLeftRange){
+  const {low,high} = marginLeftRange
+  return Math.min( Math.max(low, numberToVerify), high )
+}
+
+function getFormattedDate(dateString) {
+  var todayTime = new Date(dateString);
+  var month = format(todayTime .getMonth() + 1);
+  var day = format(todayTime .getDate());
+  var year = format(todayTime .getFullYear());
+  return month + "/" + day + "/" + year;
+}
+
+export function makeChart(inputs) { 
+  let {
     primaryName,
     primaryData,
     secondaryName,
@@ -30,132 +50,417 @@ export function makeChart(inputs){
     tertiaryName,
     tertiaryData,
     labels,
-    rootContainer = container, //document.body,
-    onPressSetDateRangeButton = ()=>{},
-    exicuteChartResize = ()=>{log('exicuteChartResize')},
+    onPressSetDateRangeButton = () => {},
+    exicuteChartResize = () => {
+      log('exicuteChartResize')
+    },
   } = inputs
 
-  let chartCanvas  = document.createElement('canvas')
+  const _exicuteChartResize = exicuteChartResize
+  exicuteChartResize = ()=>{
+    _exicuteChartResize()
+    resetDateComponents()
+    refreshNewDateRangeComponent()
+  }
+
+  let chartCanvas = document.createElement('canvas')
   chartJSContainer.appendChild(chartCanvas)
   chartCanvas.id = 'chartCanvas'
 
   let ctx = chartCanvas.getContext('2d')
-  
-  let mouseIsPressedOnChart = false
   let overlayCanvas
-  let highlightRangeX = {}
-  let dateRangeIndecies = {first:null,second:null}
   let dateArray
   let chartJSInstance
-  
-  //* DEFINE CHART MOUSE/TOUCH MOUSE DOWN EVENT FUNCTION
-  const beginUserSelectRange = (e)=>{ 
-    const clientX = function(){
-      if(e.touches)return e.touches[0].clientX
+
+  let beginDateComponent, endDateComponent
+
+
+ 
+
+  if(!beginDateComponent)beginDateComponent = addDateMarker({
+    parentContiner: bottomFillStrip,
+    borderBottomLeftRadius: 6,
+  }) 
+
+  if(!endDateComponent)endDateComponent = addDateMarker({
+    parentContiner: bottomFillStrip,
+    borderBottomRightRadius: 6,
+  }) 
+
+  //** MOUSE EVENT HANDLING */
+  let mouseIsPressed = false
+  const sendMousePress = (e)=>{ log('sendMousePress')
+    if (e.button === RIGHT_MOUSE_BUTTON_CLICK)return
+    const cartLeftGap = chartCanvas.getBoundingClientRect().x
+    const x = Math.round(e.clientX - cartLeftGap)
+    const cartTopGap = chartCanvas.getBoundingClientRect().y
+    const y = Math.round(e.clientY - cartTopGap)
+    pen.sendMousePress({x,y})
+    mouseIsPressed = true
+  }
+  const sendMouseDrag = (e)=>{ log('sendMouseDrag')
+    const clientX = function () {
+      if (e.touches) return e.touches[0].clientX
       return e.clientX
     }()
-    const clientY = function(){
-      if(e.touches)return e.touches[0].clientY
-      return e.clientY
-    }()
-    if(e.button === RIGHT_MOUSE_BUTTON_CLICK) {
-      hideOverlay()
-      return
-    }
-    if(setNewDateRangeButton)setNewDateRangeButton.hidden = true
-    mouseIsPressedOnChart = false
-    const box = chartCanvas.getBoundingClientRect()
-    const pointIsWithinChartFame = getPointIsWithinChartFrame(
-      Math.max(Math.round(clientX - box.x),0), 
-      Math.max(Math.round(clientY - box.y),0)
-    )
-    if(!pointIsWithinChartFame)return 
-  
-    highlightRangeX = {}
-    mouseIsPressedOnChart = true
-    highlightRangeX = {firstPoint : showOverlay(clientX)}
-    return
+    pen.sendMouseDrag({x:clientX})
   }
-  chartCanvas.addEventListener('mousedown',beginUserSelectRange)
-  chartCanvas.addEventListener('touchstart', beginUserSelectRange)
-  //*                                                     */
+  const sendMouseRelease = ()=>{
+    pen.sendMouseRelease()
+    mouseIsPressed = false
+  }
 
-  //* ..... MOVE EVENT FUNCTION
-  const userDragSelectRange  = (e)=>{ 
-    if(!mouseIsPressedOnChart)return
-    const clientX = function(){
-      if(e.touches)return e.touches[0].clientX
-      return e.clientX
-    }()
-    highlightRangeX.secondPoint = showOverlay(clientX)
-    corrdinateDateTagsWithHighlightRange()
-  }
-  chartCanvas.addEventListener('mousemove',userDragSelectRange)
-  chartCanvas.addEventListener('touchmove', userDragSelectRange);
-  //*                                                     */
 
-  //* END EVENT FUNCTION
-  const endUserSelectRange = (e)=>{ 
-    mouseIsPressedOnChart = false
-    corrdinateDateTagsWithHighlightRange()
-    if(!highlightRangeX.secondPoint)hideOverlay()
-    if(Math.abs(highlightRangeX.secondPoint - highlightRangeX.firstPoint) < 10)hideOverlay()
-  }
-  chartCanvas.addEventListener('mouseup', endUserSelectRange)
-  chartCanvas.addEventListener('touchend', endUserSelectRange)
-  //*                                                     */
-  
-  rootContainer.addEventListener('mouseup',(e)=>{ 
-    mouseIsPressedOnChart = false
-    if(!setNewDateRangeButton)return
-    if(setNewDateRangeButton.hidden)return
-    setsetNewDateRangeButton()
+//** IMPLIMENT PEN EVENT FLOW HANDLER*/
+  const pen = new PenConstruct()
+  beginDateComponent.addEventListener('mousedown', ()=>{ 
+    mouseIsPressed = true
+    pen.sendMousePress(beginDateComponent)
   })
 
-  function getPointIsWithinChartFrame(x,y){
-    const chartAreaBox = getChartAreaBox2()
-    if(x < chartAreaBox.left) return false
-    if(x > chartAreaBox.right) return false
-    if(y < chartAreaBox.top) return false
-    if(y > chartAreaBox.bottom) return false
+  beginDateComponent.addEventListener('touchstart', ()=>{ 
+    pen.sendMousePress(beginDateComponent)
+  })
+
+  endDateComponent.addEventListener('mousedown', ()=>{
+    mouseIsPressed = true
+    pen.sendMousePress(endDateComponent)
+  })
+
+  endDateComponent.addEventListener('touchstart', ()=>{
+    pen.sendMousePress(endDateComponent)
+  })
+
+  beginDateComponent.addEventListener('mouseover', ()=>{
+    beginDateComponent.showHighlightLine()
+  })
+  beginDateComponent.addEventListener('mouseout', ()=>{
+    if(mouseIsPressed)return
+    beginDateComponent.hideHighlightLine()
+  })
+
+  endDateComponent.addEventListener('mouseover', ()=>{
+    endDateComponent.showHighlightLine()
+  })
+  endDateComponent.addEventListener('mouseout', ()=>{
+    if(mouseIsPressed)return
+    endDateComponent.hideHighlightLine()
+  })
+
+    // chartCanvas.addEventListener('mousedown', (e)=>{log(123);sendMousePress(e)})
+
+  chartCanvas.addEventListener('mousedown', sendMousePress) //touchstart
+  chartCanvas.addEventListener('touchstart',sendMousePress) //(e)=>{log('touchstart');sendMousePress(e)})
+  
+  window.addEventListener('mouseup', ()=>{
+    beginDateComponent.hideHighlightLine()
+    endDateComponent.hideHighlightLine()
+    pen.sendMouseRelease()
+  })
+
+  window.addEventListener('mousemove', sendMouseDrag)
+  window.addEventListener('touchmove', sendMouseDrag)
+
+  window.addEventListener('touchend', sendMouseRelease)
+  chartCanvas.addEventListener('mouseup', sendMouseRelease)
+
+  pen.mousePressEventStack = {
+    mouseClickedOnBeginDateMark : {
+      evaluate : (component)=>{
+        if(component === beginDateComponent)return true
+      },
+      exicute : ()=>{
+        let startDragBeginX
+        let marginLeftAtBeginningOfMove = Number(beginDateComponent.container.style.marginLeft.split('px')[0]) 
+        pen.defineEventFunction({
+          //** EVENT-----*/
+          mouseDragBegin: (mouseDragPoint) => { 
+            startDragBeginX = mouseDragPoint.x
+            beginDateComponent.showHighlightLine()
+          }
+        })
+        pen.defineEventFunction({
+          //** EVENT-----*/
+          mouseDragContinue: (mouseDragPoint) => { 
+            const moveDistance = mouseDragPoint.x - startDragBeginX
+            const marginDist = Math.round(marginLeftAtBeginningOfMove + moveDistance)
+            const marginNumber = getNumberWithinRange(marginDist, marginLeftRange)
+            beginDateComponent.container.style.marginLeft = marginNumber + 'px'
+            setDateString(beginDateComponent)
+            refreshNewDateRangeComponent()
+          }
+        })
+        pen.defineEventFunction({
+          //** EVENT-----*/
+          mouseRelease: () => { 
+            beginDateComponent.hideHighlightLine()
+          }
+        })
+      }
+    },
+    mouseClickedOnEndDateMark : { 
+      evaluate : (component)=>{
+        if(component === endDateComponent)return true
+      },
+      exicute : ()=>{
+        let startDragBeginX
+        let marginLeftAtBeginningOfMove = Number(endDateComponent.container.style.marginLeft.split('px')[0]) 
+        pen.defineEventFunction({
+          //** EVENT-----*/
+          mouseDragBegin: (mouseDragPoint) => { 
+            startDragBeginX = mouseDragPoint.x
+            endDateComponent.showHighlightLine()
+          }
+        })
+        pen.defineEventFunction({
+          //** EVENT-----*/
+          mouseDragContinue: (mouseDragPoint) => { 
+            const moveDistance = mouseDragPoint.x - startDragBeginX
+            const marginDist = Math.round(marginLeftAtBeginningOfMove + moveDistance)
+            const marginNumber = getNumberWithinRange(marginDist, marginLeftRange)
+            endDateComponent.container.style.marginLeft = marginNumber + 'px'
+            setDateString(endDateComponent)
+            refreshNewDateRangeComponent()
+          }
+        })
+        pen.defineEventFunction({
+          //** EVENT-----*/
+          mouseRelease: () => { 
+            endDateComponent.hideHighlightLine()
+          }
+        })
+      }
+    },
+
+
+    mouseClickedBetweenDateMarksWhileEditIsActive: {
+      evaluate: (mousePressPoint,
+        _timeSpanEditIsActive = timeSpanEditIsActive,
+        // chartLeftOffset = CHART_LEFT_SIDE_OFFSET,
+        // chartRightOffset = chartContainer.getBoundingClientRect().width - CHART_RIGHT_SIDE_OFFSET,
+      ) => { 
+        if (!_timeSpanEditIsActive) return
+
+        if (mousePressPoint.x < beginDateComponent.x) return
+        if (mousePressPoint.x > endDateComponent.x) return
+        return true
+      },
+      exicute: () => {
+        log('mouseClickedBetweenDateMarksWhileEditIsActive')
+        // resetDateComponents()
+        const firstDay = dateArray[ beginDateComponent.dateIndex]
+        const lastDay = dateArray[ endDateComponent.dateIndex]
+        onPressSetDateRangeButton([firstDay, lastDay])
+        delete beginDateComponent.dateIndex
+        delete endDateComponent.dateIndex
+        resetDateComponents()
+      }
+    },
+    
+    mouseClickedOnChartAreaDurringTimeSpanEditIsActive: { 
+      evaluate: (mousePressPoint,
+        _timeSpanEditIsActive = timeSpanEditIsActive,
+        chartLeftOffset = CHART_LEFT_SIDE_OFFSET,
+        chartRightOffset = chartContainer.getBoundingClientRect().width - CHART_RIGHT_SIDE_OFFSET,
+      ) => {
+        if (!_timeSpanEditIsActive) return
+        if (mousePressPoint.x < chartLeftOffset) return
+        if (mousePressPoint.x > chartRightOffset) return
+        return true
+      },
+      exicute: () => { //log('mouseClickedOnChartAreaDurringTimeSpanEditIsActive')
+        resetDateComponents()
+      }
+    },
+    mouseClickedOnChartArea: { 
+      evaluate: (
+        mousePressPoint,
+        chartLeftOffset = CHART_LEFT_SIDE_OFFSET,
+        chartRightOffset = chartContainer.getBoundingClientRect().width - CHART_RIGHT_SIDE_OFFSET,
+      ) => {
+        if (mousePressPoint.x < chartLeftOffset) return
+        if (mousePressPoint.x > chartRightOffset) return
+        return true
+      },
+      exicute: () => { //log('mouseClickedOnChartArea')
+        let startDragBeginX
+        const chartRightGap = chartContainer.getBoundingClientRect().x
+        let moveCount = 0
+        let firstNewMargin
+        pen.defineEventFunction({
+          //** EVENT-----*/
+          mouseDragBegin: (mouseDragPoint) => { 
+            startDragBeginX = mouseDragPoint.x
+            firstNewMargin = startDragBeginX - beginDateComponent.x
+            beginDateComponent.container.style.marginLeft = firstNewMargin + 'px'
+            setDateString(beginDateComponent)
+            refreshNewDateRangeComponent()
+          }
+        })
+        pen.defineEventFunction({
+          //** EVENT-----*/
+          mouseDragContinue: (mouseDragPoint) => { 
+            const secondNewMargin = getNumberWithinRange(mouseDragPoint.x - chartRightGap - CHART_LEFT_SIDE_OFFSET, marginLeftRange)
+            let thisDateComponent = endDateComponent
+            if(firstNewMargin > secondNewMargin){
+              thisDateComponent = beginDateComponent
+              endDateComponent.container.style.marginLeft = firstNewMargin + 'px'
+            } else{
+              beginDateComponent.container.style.marginLeft = firstNewMargin + 'px'
+            }
+            thisDateComponent.container.style.marginLeft = secondNewMargin + 'px'
+            setDateString(thisDateComponent)
+            refreshNewDateRangeComponent()
+            moveCount++
+          }
+        })
+        pen.defineEventFunction({
+          //** EVENT-----*/
+          mouseRelease: () => { 
+            if(moveCount < 16) resetDateComponents()
+          }
+        })
+      }
+    }
+  }
+
+
+  function getPointIsWithinChartFrame(x, y) {
+    const chartAreaBox = getChartAreaBox()
+    if (x < chartAreaBox.left) return false
+    if (x > chartAreaBox.right) return false
+    if (y < chartAreaBox.top) return false
+    if (y > chartAreaBox.bottom) return false
     return true
   }
 
-  function getChartAreaBox2(){
+  function getChartAreaBox() {
     const chartCanvasBox = chartCanvas.getBoundingClientRect()
     return {
       left: CHART_LEFT_SIDE_OFFSET,
-      right : chartCanvasBox.width - CHART_RIGHT_SIDE_OFFSET,
-      top : CHART_TOP_SIDE_OFFSET,
-      bottom : chartCanvasBox.height - CHART_BOTTOM_SIDE_OFFSET
+      right: chartCanvasBox.width - CHART_RIGHT_SIDE_OFFSET,
+      top: CHART_TOP_SIDE_OFFSET,
+      bottom: chartCanvasBox.height - CHART_BOTTOM_SIDE_OFFSET
     }
   }
 
-  function refreshOverlayCanvasSize(){
-    const chartCanvasBox = chartCanvas.getBoundingClientRect()
-    overlayCanvas.width = chartCanvasBox.width
-    overlayCanvas.height = chartCanvasBox.height + CHART_CANVAS_HEIGHT_EXTENTION
+  let marginLeftRange = { low : 0, high : 0}
+
+  function resetDateComponents (){ 
+    beginDateComponent.height = chartJSContainer.getBoundingClientRect().height
+    endDateComponent.height = chartJSContainer.getBoundingClientRect().height
+    const chartWidth = chartJSContainer.getBoundingClientRect().width
+    marginLeftRange.high =  chartWidth - CHART_RIGHT_SIDE_OFFSET - CHART_LEFT_SIDE_OFFSET
+
+    //* TODO FIX AMIMATION BELOW (DO NOT DELETE)   */
+    // function animateMarginChange (container, destination){
+    //   const currentMargin = Number(container.style.marginLeft.split('px')[0])
+    //   let moveIncriment = Math.abs(currentMargin - destination)
+    //   let loopMove = setInterval(() => {
+    //     if(moveIncriment <= 0){
+    //       clearInterval(loopMove);
+    //       container.style.marginLeft = destination + 'px'
+    //       // endDateComponent.container.style.marginLeft = marginLeftRange.high + 'px'
+    //       setDateString(beginDateComponent)
+    //       setDateString(endDateComponent)
+    //       refreshNewDateRangeComponent()
+    //     } else  container.style.marginLeft = (destination + moveIncriment) + 'px'
+    //     moveIncriment -= 8
+    //   }, 1);
+    // }
+    // animateMarginChange(beginDateComponent.container, 0)
+    //*  AMIMATION TO REPLACE BELOW */
+    endDateComponent.container.style.marginLeft = marginLeftRange.high + 'px'
+    beginDateComponent.container.style.marginLeft = '0px'
+    setDateString(beginDateComponent)
+    setDateString(endDateComponent)
+    refreshNewDateRangeComponent()
   }
 
-  function refreshOverlayCanvas(){
-    if(!chartCanvas)return
-    const chartCanvasBox = chartCanvas.getBoundingClientRect()
-    if(!overlayCanvas){
-      overlayCanvas = document.createElement('canvas')
-      chartContainer.insertBefore(overlayCanvas, bottomFillStrip)
-      overlayCanvas.style.pointerEvents = 'none'
-      overlayCanvas.style.marginBottom = '0'
+  function setDateString(component){
+    const fullLength = chartJSContainer.getBoundingClientRect().width - CHART_LEFT_SIDE_OFFSET - CHART_RIGHT_SIDE_OFFSET
+    const marginNumber = Number(component['container'].style.marginLeft.split('px')[0])
+    const fraction = marginNumber / fullLength
+    const index = Math.round( fraction * formatedDateArray.length)
+    const dateStr = formatedDateArray[index]
+    component.dateIndex = index
+    if(dateStr)component.textElement.textContent = dateStr
+  }
+
+  function getTimeSpanInDays(date1, date2) {
+    const dt1 = new Date(date1);
+    const dt2 = new Date(date2);
+    return Math.floor((Date.UTC(dt2.getFullYear(), dt2.getMonth(), dt2.getDate()) - Date.UTC(dt1.getFullYear(), dt1.getMonth(), dt1.getDate())) / (1000 * 60 * 60 * 24));
+  }
+  function getTimeSpanInYears(date1, date2) {
+    return Math.abs(Math.round((getTimeSpanInDays(date1, date2) / 365) * 100) / 100)
+  }
+
+  function refreshNewDateRangeComponent(){
+    if (!newDateRangeContainer) {
+      newDateRangeContainer = document.createElement('div')
+      chartContainer.insertBefore(newDateRangeContainer, bottomFillStrip)
+      newDateRangeContainer.style.position = 'absolute'
+      // newDateRangeContainer.style.height = '1.5em'
+      newDateRangeContainer.style.fontSize = 'x-small'
+      newDateRangeContainer.style.border = 'none'
+      newDateRangeContainer.style.textAlign = 'center'
+      // newDateRangeContainer.style.marginTop = -1 * newDateRangeContainer.getBoundingClientRect().height + 'px'
+      newDateRangeContainer.style.pointerEvents = 'none'
+      newDateRangeContainer.addEventListener('click', () => {
+      })
+      //** ---------------------- */
+      setRangeLabel = document.createElement('text')
+      newDateRangeContainer.append(setRangeLabel)
+      setRangeLabel.style.position = 'absolute'
+      setRangeLabel.textContent = 'SET RANGE'
+      setRangeLabel.style.fontSize = 'small'
+      setRangeLabel.style.border = 'none'
+      setRangeLabel.style.marginLeft = '-1em'
+      setRangeLabel.style.whiteSpace = 'nowrap'
+      setRangeLabel.style.marginLeft = '-35px'
+      setRangeLabel.style.color = 'purple'
+      setRangeLabel.style.fontWeight = 'bold'
+      //** ---------------------- */
+      timeSpanText = document.createElement('text')
+      timeSpanText.style.position = 'absolute'
+      timeSpanText.style.whiteSpace = 'nowrap'
+      newDateRangeContainer.append(timeSpanText)
     }
-    overlayCanvas.hidden = false
-    overlayCanvas.style.marginTop  = (chartCanvasBox.height * -1) + 'px'
-    refreshOverlayCanvasSize()
+    if(!beginDateComponent.dateIndex)beginDateComponent.dateIndex = 0
+    if(!endDateComponent.dateIndex)endDateComponent.dateIndex = dateArray.length - 1
+    if(!dateArray[endDateComponent.dateIndex])endDateComponent.dateIndex--
+    const atFullRange = (beginDateComponent.dateIndex === 0 && endDateComponent.dateIndex === dateArray.length - 1)
+    if(atFullRange){
+      timeSpanEditIsActive = false
+      newDateRangeContainer.style.backgroundColor = ''
+      setRangeLabel.hidden = true
+    } else {
+      timeSpanEditIsActive = true
+      newDateRangeContainer.style.backgroundColor = 'rgba(255,0,0,0.1)'
+      newDateRangeContainer.style.height = chartJSContainer.getBoundingClientRect().height + 'px'
+      newDateRangeContainer.style.marginTop = (chartJSContainer.getBoundingClientRect().height * -1) + 'px'
+      setRangeLabel.hidden = false
+    }
+    const timeSpan = getTimeSpanInYears(dateArray[beginDateComponent.dateIndex], dateArray[endDateComponent.dateIndex])
+    timeSpanText.textContent = timeSpan + ' Years'
+    timeSpanText.style.marginTop = (chartJSContainer.getBoundingClientRect().height - 16 ) + 'px'
+    timeSpanText.style.marginLeft = ((timeSpanText.getBoundingClientRect().width / 2.5) * -1 ) + 'px'
+    
+    const rangeWidth = Math.abs(beginDateComponent.x - endDateComponent.x)
+    newDateRangeContainer.style.marginLeft = beginDateComponent.x + 'px'
+    newDateRangeContainer.style.width = rangeWidth + 'px'
   }
 
-  function truncateDates (dateArray){ 
-    return dateArray.map(dateString=>{
-      const strArr = dateString.split('-')
-      return strArr[1] + '-' + strArr[2]
+  let formatedDateArray
+  function formatDates(dateArray) {
+    formatedDateArray = dateArray.map(dateString => {
+      const date = new Date(dateString)
+      const dateArr = date.toDateString().split(' ')
+      dateArr.shift()
+      return dateArr.join(' ')
     })
+    return formatedDateArray
   }
 
   function refreshChart() {
@@ -163,7 +468,7 @@ export function makeChart(inputs){
     chartJSInstance = new Chart(ctx, {
       type: 'line',
       data: {
-        labels: truncateDates(labels),
+        labels: formatDates(labels),
         datasets: [{
             label: primaryName,
             lineTension: 0,
@@ -189,227 +494,253 @@ export function makeChart(inputs){
         ]
       },
       options: {
-        responsive : true,
-        maintainAspectRatio : false,
+        legend: {
+          display: false
+        },
+        responsive: true,
+        maintainAspectRatio: false,
         layout: {
           padding: {
-            left: 5,
+            left: 0,
             right: 10,
-            top: 0,
-            bottom: 3
+            top: 10,
+            bottom: 0
           }
         },
-
         scales: {
+          xAxes: [{
+            gridLines: {
+              display: false,
+            },
+            ticks: {
+              display: false
+            }
+          }],
           yAxes: [{
             ticks: {
-              callback: function(value,index,values){
-                const prefix = value === 0 ? '----' : ''
+              callback: function (value, index, values) {
+                const prefix = value === 0 ? '------' : ''
                 return prefix + value + '%'
               },
-            }
+            },
           }]
         }
       }
     })
-    chartCanvas.style.boxShadow = "8px 8px 8px rgba(0,0,0,.3)"
+
+    //*  RESET DATE MARKERS BY TIME LOOP...CHECK WHEN CHART-JS IS LOADED
+    let timeCount = 0
+    const initialHeight = chartJSContainer.getBoundingClientRect().height
+    let loopToCheckChartDidLoad = setInterval(() => {
+      const currentHeight = chartJSContainer.getBoundingClientRect().height
+      if(currentHeight !== initialHeight){
+        clearInterval(loopToCheckChartDidLoad);
+        resetDateComponents ()
+      }
+      if (timeCount === 20) {
+        //* END LOOP AND EXICUTE AFTER TIME LIMIT EXPIRES
+        clearInterval(loopToCheckChartDidLoad);
+        resetDateComponents ()
+      }
+      timeCount++
+    }, 100);
+    const SHADOW_DIM = 16
+    chartCanvas.style.boxShadow = `${SHADOW_DIM}px ${SHADOW_DIM}px ${SHADOW_DIM}px rgba(0,0,0,.3)`
     chartCanvas.style.backgroundColor = 'white'
-    chartCanvas.style.borderRadius = '10px'
-  }
- 
-  function showOverlay(clientX){ 
-    overlayCanvas.hidden = false
-    if(setNewDateRangeButton && highlightRangeX.secondPoint)setNewDateRangeButton.hidden = false
-    if(firstRangeTag) firstRangeTag.hidden = false
-    if(secondRangeTag) secondRangeTag.hidden = false
-    const chartCanvasBox = chartCanvas.getBoundingClientRect()
-    refreshOverlayCanvas()
-    const ctx = overlayCanvas.getContext('2d')
-    ctx.setLineDash([2, 2])
-    ctx.lineWidth = 1
-    ctx.beginPath()
-    const rangeX = {
-      low: CHART_LEFT_SIDE_OFFSET,
-      high: overlayCanvas.width - CHART_RIGHT_SIDE_OFFSET
-    }
-
-    const x = Math.min( Math.max(clientX - chartCanvasBox.x, rangeX.low), rangeX.high)
-    ctx.moveTo(x, 0)
-    ctx.lineTo(x, overlayCanvas.height)
-    ctx.stroke()
-
-    if(highlightRangeX.firstPoint){
-      ctx.moveTo(highlightRangeX.firstPoint, 0)
-      ctx.lineTo(highlightRangeX.firstPoint, overlayCanvas.height)
-      ctx.stroke()
-    }
-
-    if(DRAW_CHART_BOUNDRY) {
-      //* DRAW LEFT CHART BOUNDRY
-      ctx.moveTo(CHART_LEFT_SIDE_OFFSET, 0)
-      ctx.lineTo(CHART_LEFT_SIDE_OFFSET, overlayCanvas.height)
-      ctx.stroke()
-      //* DRAW RIGHT CHART BOUNDRY
-      ctx.moveTo(overlayCanvas.width - CHART_RIGHT_SIDE_OFFSET, 0)
-      ctx.lineTo(overlayCanvas.width - CHART_RIGHT_SIDE_OFFSET, overlayCanvas.height)
-      ctx.stroke()
-      //* DRAW TOP CHART BOUNDRY
-      ctx.moveTo(0, CHART_TOP_SIDE_OFFSET)
-      ctx.lineTo(overlayCanvas.width, CHART_TOP_SIDE_OFFSET)
-      ctx.stroke()
-      //* DRAW BOTTOM CHART BOUNDRY
-      ctx.moveTo(0, overlayCanvas.height - CHART_BOTTOM_SIDE_OFFSET)
-      ctx.lineTo(overlayCanvas.width,  overlayCanvas.height - CHART_BOTTOM_SIDE_OFFSET)
-      ctx.stroke()
-    }
-
-    if(!highlightRangeX)return x
-    ctx.fillStyle = 'rgba(200,0,0,.1)'
-    ctx.fillRect(
-      highlightRangeX.firstPoint,
-      CHART_TOP_SIDE_OFFSET,
-      x - highlightRangeX.firstPoint,
-      overlayCanvas.height - CHART_BOTTOM_SIDE_OFFSET - CHART_TOP_SIDE_OFFSET
-    )
-    showRange ()
-
-
-    bottomFillStrip.style.marginTop = '-20px'
-    return x
+    chartCanvas.style.borderRadius = '0px'
   }
 
-  function hideOverlay(){
-    if(overlayCanvas) overlayCanvas.hidden = true
-    if(setNewDateRangeButton)setNewDateRangeButton.hidden = true
-    if(firstRangeTag)firstRangeTag.hidden = true
-    if(secondRangeTag)secondRangeTag.hidden = true
-    bottomFillStrip.style.marginTop = '0'
-  }
-
-  let firstRangeTag, secondRangeTag
-  let setNewDateRangeButton
-  
-  function showRange (){ 
-    function makeTag(){
-      const tag = document.createElement('text')
-      chartContainer.insertBefore(tag,bottomFillStrip)
-      tag.style.position = 'absolute'
-      tag.style.border = 'solid'
-      tag.style.pointerEvents = 'none'
-      tag.textContent = 'Jan 12, 2016'
-      tag.style.border = 'none'
-      tag.style.fontFamily = 'Arial, Helvetica, sans-serif'
-      tag.style.fontSize = 'x-small'
-      tag.style.fontWeight = 'bold'
-      tag.style.padding = '2px'
-      tag.style.backgroundColor = 'rgba(255,255,255,.4)'
-      return tag
-    }
-
-    const parentContainerOffsetX = bottomFillStrip.parentElement.getBoundingClientRect().x
-
-    if(!firstRangeTag)firstRangeTag = makeTag()
-      else firstRangeTag.hidden = false
-
-    firstRangeTag.style.left = (highlightRangeX.firstPoint - firstRangeTag.getBoundingClientRect().width + parentContainerOffsetX) + 'px'
-
-    if(!secondRangeTag)secondRangeTag = makeTag()
-      else secondRangeTag.hidden = false
-
-    secondRangeTag.style.left = (highlightRangeX.secondPoint - secondRangeTag.getBoundingClientRect().width + parentContainerOffsetX) + 'px'
-    if(!setNewDateRangeButton){
-      setNewDateRangeButton = document.createElement('button')
-      chartContainer.insertBefore(setNewDateRangeButton,bottomFillStrip)
-      setNewDateRangeButton.style.position = 'absolute'
-      setNewDateRangeButton.textContent= 'SET'
-      setNewDateRangeButton.style.height = '2.5em'
-      setNewDateRangeButton.style.fontFamily = 'Arial, Helvetica, sans-serif'
-      setNewDateRangeButton.style.fontSize = 'xx-small'
-      setNewDateRangeButton.style.border = 'none'
-      setNewDateRangeButton.style.backgroundColor = 'blue'
-      setNewDateRangeButton.style.opacity = 0.5
-      setNewDateRangeButton.style.color = 'white'
-      setNewDateRangeButton.style.marginTop = -1 * setNewDateRangeButton.getBoundingClientRect().height +  'px'
-      setNewDateRangeButton.addEventListener('click',()=>{
-        const first = Math.min(dateRangeIndecies.first,dateRangeIndecies.second)
-        const last = Math.max(dateRangeIndecies.first,dateRangeIndecies.second)
-        const firstDay = dateArray[first]
-        const lastDay = dateArray[last]
-        onPressSetDateRangeButton([firstDay , lastDay])
-        hideOverlay()
-      })
-    }
-    setsetNewDateRangeButton ()
-  }
-
-  function setsetNewDateRangeButton (){ 
-    const parentContainerOffsetX = bottomFillStrip.parentElement.getBoundingClientRect().x
-    const rangeWidth = Math.abs(highlightRangeX.firstPoint - highlightRangeX.secondPoint)
-    const X1 = Math.min(highlightRangeX.firstPoint, highlightRangeX.secondPoint)
-    setNewDateRangeButton.style.left = (X1 + parentContainerOffsetX) + 'px'
-    setNewDateRangeButton.style.width = rangeWidth + 'px'
-  }
-  
-  function corrdinateDateTagsWithHighlightRange(){
-
-    function getTimeSpanInDays (date1, date2) {
-      const dt1 = new Date(date1);
-      const dt2 = new Date(date2);
-      return Math.floor((Date.UTC(dt2.getFullYear(), dt2.getMonth(), dt2.getDate()) - Date.UTC(dt1.getFullYear(), dt1.getMonth(), dt1.getDate())) / (1000 * 60 * 60 * 24));
-    }
-    
-    function getTimeSpanInYears (date1, date2) {
-      return  Math.abs( Math.round(  (getTimeSpanInDays (date1, date2) / 365) * 100 ) / 100)
-    }
-
-    const chartWidth = chartCanvas.getBoundingClientRect().width - CHART_LEFT_SIDE_OFFSET - CHART_RIGHT_SIDE_OFFSET
-    const firstRatio = (highlightRangeX.firstPoint - CHART_LEFT_SIDE_OFFSET )/ chartWidth
-    dateRangeIndecies.first = Math.round(firstRatio * dateArray.length)
-    const firstDateString = dateArray[dateRangeIndecies.first]
-    if(firstRangeTag)firstRangeTag.textContent = firstDateString + '➞'
-    const secondRatio = (highlightRangeX.secondPoint - CHART_LEFT_SIDE_OFFSET )/ chartWidth
-    dateRangeIndecies.second = Math.round(secondRatio * (dateArray.length - 1))
-    const secondDateString = dateArray[dateRangeIndecies.second]
-    if(secondRangeTag)secondRangeTag.textContent = secondDateString + '➞'
-
-    const timeSpan = getTimeSpanInYears(firstDateString,secondDateString) + '\r\nYears'
-    setNewDateRangeButton.textContent = timeSpan
-  }
+  let newDateRangeContainer, setRangeLabel, timeSpanText, timeSpanEditIsActive = false
 
   refreshChart()
-  refreshOverlayCanvas()
-  hideOverlay()
+  let showPrimary = true,
+    showSecondary = true,
+    showTertiary = true
 
   return {
-    get dateRange(){
+    get dateRange() {
       return dateArray
     },
-    setData : ( inputs )=>{
+    setData: (inputs) => {
       const {
         primaryData,
         secondaryData,
         tertiaryData,
         labels
       } = inputs
-
-      if(primaryData)chartJSInstance.data.datasets[0].data = primaryData
-      if(secondaryData)chartJSInstance.data.datasets[1].data = secondaryData
-      if(tertiaryData)chartJSInstance.data.datasets[2].data = tertiaryData
-      if(labels) chartJSInstance.data.labels = truncateDates(labels)
-
+      if (primaryData) chartJSInstance.data.datasets[0].data = primaryData
+      if (secondaryData) chartJSInstance.data.datasets[1].data = secondaryData
+      if (tertiaryData) chartJSInstance.data.datasets[2].data = tertiaryData
+      if (labels) chartJSInstance.data.labels = formatDates(labels)
       chartJSInstance.update()
-      if(labels) dateArray = labels
+      if (labels) { 
+        dateArray = labels
+      }
     },
 
-    destroy : ()=>{
-      if(setNewDateRangeButton)setNewDateRangeButton.remove()
-      if(secondRangeTag)secondRangeTag.remove()
-      if(firstRangeTag)firstRangeTag.remove()
-      if(overlayCanvas)overlayCanvas.remove()
+    destroy: () => {
+      if (newDateRangeContainer) newDateRangeContainer.remove()
+      if (secondRangeTag) secondRangeTag.remove()
+      if (firstRangeTag) firstRangeTag.remove()
+      if (overlayCanvas) overlayCanvas.remove()
+      if (beginDateComponent) beginDateComponent.delete()
+      if (endDateComponent) endDateComponent.delete()
       chartCanvas.remove()
       dateArray = null
     },
-    exicuteChartResize
+    exicuteChartResize,
 
+    toggleShowPrimary: (ON_OFF = null) => { 
+      if (ON_OFF === null) showPrimary = 1 - showPrimary
+      else showPrimary = ON_OFF + 0
+      chartJSInstance.getDatasetMeta(0).hidden = showPrimary ? false : true;
+      chartJSInstance.update()
+      return showPrimary ? true : false
+    },
+
+    toggleShowSecondary: (ON_OFF = null) => {
+      if (ON_OFF === null) showSecondary = 1 - showSecondary
+      else showSecondary = ON_OFF + 0
+      chartJSInstance.getDatasetMeta(1).hidden = showSecondary ? false : true;
+      chartJSInstance.update()
+      return showSecondary ? true : false
+    },
+
+    toggleShowTertiary: (ON_OFF = null) => {
+      if (ON_OFF === null) showTertiary = 1 - showTertiary
+      else showTertiary = ON_OFF + 0
+      chartJSInstance.getDatasetMeta(2).hidden = showTertiary ? false : true;
+      chartJSInstance.update()
+      return showTertiary ? true : false
+    },
+
+  }
+}
+
+function addDateMarker(inputs){ 
+  const {
+    parentContiner, 
+    textContent =`Feb-23-2020`,
+    borderBottomLeftRadius,
+    borderBottomRightRadius,
+    borderTopRightRadius,
+    borderTopLeftRadius,
+  } = inputs
+  const TICK_MARK_OFFSET = 46
+  
+  const container = document.createElement('div')
+  parentContiner.append(container)
+  container.style.width = 'auto'
+
+  const textElement = document.createElement('div')
+  let height = 13
+  container.append(textElement)
+  textElement.style.pointerEvents = 'none'
+  textElement.textContent = textContent 
+  textElement.style.border = 'none'
+  textElement.style.paddingLeft = '2px'
+  textElement.style.paddingRight = '2px'
+  textElement.style.fontSize = 'x-small'
+  container.style.pointerEvents = 'none'
+
+  if(borderBottomLeftRadius)textElement.style.borderBottomLeftRadius = borderBottomLeftRadius + 'px'
+  if(borderBottomRightRadius)textElement.style.borderBottomRightRadius = borderBottomRightRadius + 'px'
+  if(borderTopLeftRadius)textElement.style.borderTopLeftRadius = borderTopLeftRadius + 'px'
+  if(borderTopRightRadius)textElement.style.borderTopRightRadius = borderTopRightRadius + 'px'
+
+  textElement.style.backgroundColor = 'rgba(255,255,255,1)'
+  textElement.style.textAlign = 'right'
+  textElement.style.display = 'inline'
+  textElement.style.whiteSpace = 'nowrap'
+  container.style.width = '58px'
+  container.style.minWidth = '58px'
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('width', 8);
+  svg.setAttribute('height', 20);
+
+  svg.style.pointerEvents= 'auto'
+
+  function MakeLine(obj) {
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    for (let prop in obj) {
+      line.setAttribute(prop, obj[prop])
+    }
+    svg.append(line);
+    container.append(svg)
+    return line
+  }
+
+  let highlightLine = null
+  let line = MakeLine({
+    'x1': 0,
+    'y1': 0,
+    'x2': 0,
+    'y2': height,
+    'stroke': 'red',
+    'stroke-width': 3
+  })
+  const parentContinerHeight = parentContiner.getBoundingClientRect().height
+  parentContiner.style.height = parentContinerHeight + 'px'
+  svg.style.marginLeft = '50px'
+  container.style.position = 'absolute'
+
+  return {
+    textElement,
+    container,
+    svg,
+    line,
+    set height(newHeight = 0){
+      height = newHeight
+      line.remove()
+      line = MakeLine({
+        'x1': 3,
+        'y1': 0,
+        'x2': 3,
+        'y2': height,
+        'stroke': 'black',
+        'stroke-width': 1,
+        'stroke-dasharray':"4,4",
+      })
+      svg.append(line)
+      const move = height + 16
+      svg.style.transform = `translatey(-${move}px )`
+      svg.setAttribute('height', height)
+    },
+    get height(){
+      return height
+    },
+    get x(){
+      const textElementOffset = container.getBoundingClientRect().x - chartCanvas.getBoundingClientRect().x
+      return textElementOffset + TICK_MARK_OFFSET + 8
+    },
+    addEventListener : (kind,func)=>{ 
+      svg.addEventListener(kind,func)
+    },
+    delete:()=>{
+      container.remove()
+    },
+    showHighlightLine : ()=>{ 
+      if(highlightLine)return
+      highlightLine = MakeLine({
+        'x1': 3,
+        'y1': 0,
+        'x2': 3,
+        'y2': height,
+        'stroke': 'rgba(255,9,0,0.3)',
+        'stroke-width': 4,
+      })
+      highlightLine.style.pointerEvents = 'none'
+    },
+    hideHighlightLine : ()=>{ 
+      if(highlightLine) highlightLine.remove()
+      highlightLine = null
+    },
+    show: ()=>{
+      container.hidden = false
+    },
+    hide: ()=>{
+      container.hidden = true
+    },
   }
 }
