@@ -68,43 +68,52 @@ export function makeChart(inputs) {
   chartCanvas.id = 'chartCanvas'
 
   let ctx = chartCanvas.getContext('2d')
-  let overlayCanvas
   let dateArray
   let chartJSInstance
 
   let beginDateComponent, endDateComponent
 
-
- 
-
   if(!beginDateComponent)beginDateComponent = addDateMarker({
     parentContiner: bottomFillStrip,
     borderBottomLeftRadius: 6,
+    borderTopLeftRadius: 6,
   }) 
 
   if(!endDateComponent)endDateComponent = addDateMarker({
     parentContiner: bottomFillStrip,
     borderBottomRightRadius: 6,
+    borderTopRightRadius: 6,
   }) 
 
   //** MOUSE EVENT HANDLING */
   let mouseIsPressed = false
-  const sendMousePress = (e)=>{ log('sendMousePress')
+  const sendMousePress = (e)=>{ 
     if (e.button === RIGHT_MOUSE_BUTTON_CLICK)return
+    const clientX = function () {
+      if (e.touches) return e.touches[0].clientX
+      return e.clientX
+    }()
+    const clientY = function () {
+      if (e.touches) return e.touches[0].clientY
+      return e.clientY
+    }()
     const cartLeftGap = chartCanvas.getBoundingClientRect().x
-    const x = Math.round(e.clientX - cartLeftGap)
+    const x = Math.round(clientX - cartLeftGap)
+    // const x = Math.round(e.clientX - cartLeftGap)
     const cartTopGap = chartCanvas.getBoundingClientRect().y
-    const y = Math.round(e.clientY - cartTopGap)
+    // const y = Math.round(e.clientY - cartTopGap)
+    const y = Math.round(clientY - cartTopGap)
     pen.sendMousePress({x,y})
     mouseIsPressed = true
   }
-  const sendMouseDrag = (e)=>{ log('sendMouseDrag')
+  const sendMouseDrag = (e)=>{
     const clientX = function () {
       if (e.touches) return e.touches[0].clientX
       return e.clientX
     }()
     pen.sendMouseDrag({x:clientX})
   }
+
   const sendMouseRelease = ()=>{
     pen.sendMouseRelease()
     mouseIsPressed = false
@@ -147,10 +156,8 @@ export function makeChart(inputs) {
     endDateComponent.hideHighlightLine()
   })
 
-    // chartCanvas.addEventListener('mousedown', (e)=>{log(123);sendMousePress(e)})
-
-  chartCanvas.addEventListener('mousedown', sendMousePress) //touchstart
-  chartCanvas.addEventListener('touchstart',sendMousePress) //(e)=>{log('touchstart');sendMousePress(e)})
+  chartCanvas.addEventListener('mousedown', sendMousePress)
+  chartCanvas.addEventListener('touchstart', sendMousePress)
   
   window.addEventListener('mouseup', ()=>{
     beginDateComponent.hideHighlightLine()
@@ -172,11 +179,13 @@ export function makeChart(inputs) {
       exicute : ()=>{
         let startDragBeginX
         let marginLeftAtBeginningOfMove = Number(beginDateComponent.container.style.marginLeft.split('px')[0]) 
+        const fontSize = beginDateComponent.textElement.style.fontSize
         pen.defineEventFunction({
           //** EVENT-----*/
           mouseDragBegin: (mouseDragPoint) => { 
             startDragBeginX = mouseDragPoint.x
             beginDateComponent.showHighlightLine()
+            beginDateComponent.textElement.style.fontSize = 'medium'
           }
         })
         pen.defineEventFunction({
@@ -194,6 +203,7 @@ export function makeChart(inputs) {
           //** EVENT-----*/
           mouseRelease: () => { 
             beginDateComponent.hideHighlightLine()
+            beginDateComponent.textElement.style.fontSize = fontSize
           }
         })
       }
@@ -205,11 +215,14 @@ export function makeChart(inputs) {
       exicute : ()=>{
         let startDragBeginX
         let marginLeftAtBeginningOfMove = Number(endDateComponent.container.style.marginLeft.split('px')[0]) 
+        const fontSize = endDateComponent.textElement.style.fontSize
+       
         pen.defineEventFunction({
           //** EVENT-----*/
           mouseDragBegin: (mouseDragPoint) => { 
             startDragBeginX = mouseDragPoint.x
             endDateComponent.showHighlightLine()
+            endDateComponent.textElement.style.fontSize = 'medium'
           }
         })
         pen.defineEventFunction({
@@ -227,6 +240,7 @@ export function makeChart(inputs) {
           //** EVENT-----*/
           mouseRelease: () => { 
             endDateComponent.hideHighlightLine()
+            endDateComponent.textElement.style.fontSize = fontSize
           }
         })
       }
@@ -236,24 +250,20 @@ export function makeChart(inputs) {
     mouseClickedBetweenDateMarksWhileEditIsActive: {
       evaluate: (mousePressPoint,
         _timeSpanEditIsActive = timeSpanEditIsActive,
-        // chartLeftOffset = CHART_LEFT_SIDE_OFFSET,
-        // chartRightOffset = chartContainer.getBoundingClientRect().width - CHART_RIGHT_SIDE_OFFSET,
       ) => { 
         if (!_timeSpanEditIsActive) return
-
         if (mousePressPoint.x < beginDateComponent.x) return
         if (mousePressPoint.x > endDateComponent.x) return
         return true
       },
       exicute: () => {
-        log('mouseClickedBetweenDateMarksWhileEditIsActive')
-        // resetDateComponents()
         const firstDay = dateArray[ beginDateComponent.dateIndex]
         const lastDay = dateArray[ endDateComponent.dateIndex]
         onPressSetDateRangeButton([firstDay, lastDay])
         delete beginDateComponent.dateIndex
         delete endDateComponent.dateIndex
         resetDateComponents()
+        // endDateComponent.hideHighlightLine()
       }
     },
     
@@ -280,17 +290,20 @@ export function makeChart(inputs) {
       ) => {
         if (mousePressPoint.x < chartLeftOffset) return
         if (mousePressPoint.x > chartRightOffset) return
-        return true
+        return {mousePressPoint}
       },
-      exicute: () => { //log('mouseClickedOnChartArea')
+      exicute: (mousePressInfo) => {  log('mouseClickedOnChartArea')
+
+        const {mousePressPoint} = mousePressInfo
         let startDragBeginX
         const chartRightGap = chartContainer.getBoundingClientRect().x
         let moveCount = 0
         let firstNewMargin
+
         pen.defineEventFunction({
           //** EVENT-----*/
           mouseDragBegin: (mouseDragPoint) => { 
-            startDragBeginX = mouseDragPoint.x
+            startDragBeginX = mousePressPoint.x
             firstNewMargin = startDragBeginX - beginDateComponent.x
             beginDateComponent.container.style.marginLeft = firstNewMargin + 'px'
             setDateString(beginDateComponent)
@@ -317,8 +330,11 @@ export function makeChart(inputs) {
         pen.defineEventFunction({
           //** EVENT-----*/
           mouseRelease: () => { 
-            if(moveCount < 16) resetDateComponents()
+            if(moveCount < 10) resetDateComponents()
+            beginDateComponent.hideHighlightLine()
+            endDateComponent.hideHighlightLine()
           }
+          
         })
       }
     }
@@ -580,9 +596,7 @@ export function makeChart(inputs) {
 
     destroy: () => {
       if (newDateRangeContainer) newDateRangeContainer.remove()
-      if (secondRangeTag) secondRangeTag.remove()
-      if (firstRangeTag) firstRangeTag.remove()
-      if (overlayCanvas) overlayCanvas.remove()
+
       if (beginDateComponent) beginDateComponent.delete()
       if (endDateComponent) endDateComponent.delete()
       chartCanvas.remove()
